@@ -6,7 +6,7 @@ app = Flask(__name__)
 
 # הגדרת מפתח ה-API
 # שים לב: אם לא הגדרת Environment Variable ב-Render, שים את המפתח כאן במקום המחרוזת
-api_key = os.environ.get("GOOGLE_API_KEY", "YOUR_ACTUAL_API_KEY_HERE")
+api_key = os.environ.get("GEMINI_API_KEY")
 genai.configure(api_key=api_key)
 
 @app.route('/check-ai', methods=['POST'])
@@ -38,4 +38,5 @@ if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     # ה-host חייב להיות 0.0.0.0 כדי שיהיה ציבורי
     app.run(host='0.0.0.0', port=port)
+
 
