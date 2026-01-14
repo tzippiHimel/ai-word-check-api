@@ -7,13 +7,15 @@ app = FastAPI()
 
 HF_API_KEY = os.getenv("HF_API_KEY")
 
-# ✅ NEW Hugging Face router endpoint
-MODEL_URL = "https://router.huggingface.co/v1/models/bigscience/bloom-560m"
+# Hugging Face Router – OpenAI compatible
+API_URL = "https://router.huggingface.co/v1/chat/completions"
 
 HEADERS = {
     "Authorization": f"Bearer {HF_API_KEY}",
     "Content-Type": "application/json"
 }
+
+MODEL_NAME = "bigscience/bloom-560m"
 
 
 class AIRequest(BaseModel):
@@ -24,12 +26,17 @@ class AIRequest(BaseModel):
 @app.post("/ai-check")
 def ai_check(data: AIRequest):
     payload = {
-        "inputs": data.text_to_ai
+        "model": MODEL_NAME,
+        "messages": [
+            {"role": "user", "content": data.text_to_ai}
+        ],
+        "temperature": 0.7,
+        "max_tokens": 200
     }
 
     try:
         response = requests.post(
-            MODEL_URL,
+            API_URL,
             headers=HEADERS,
             json=payload,
             timeout=30
@@ -47,10 +54,9 @@ def ai_check(data: AIRequest):
         return {
             "ai_response": None,
             "found": False,
-            "error": "Invalid JSON from Hugging Face"
+            "error": "Invalid response from Hugging Face Router"
         }
 
-    # Hugging Face error / model loading
     if response.status_code != 200:
         return {
             "ai_response": None,
@@ -58,13 +64,14 @@ def ai_check(data: AIRequest):
             "hf_response": result
         }
 
-    # Extract generated text safely
-    if isinstance(result, list) and len(result) > 0:
-        ai_text = result[0].get("generated_text", "")
-    elif isinstance(result, dict):
-        ai_text = result.get("generated_text", "")
-    else:
-        ai_text = ""
+    try:
+        ai_text = result["choices"][0]["message"]["content"]
+    except Exception:
+        return {
+            "ai_response": None,
+            "found": False,
+            "hf_response": result
+        }
 
     found = data.word_to_check.lower() in ai_text.lower()
 
