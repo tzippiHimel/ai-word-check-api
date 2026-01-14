@@ -5,15 +5,16 @@ import os
 
 app = FastAPI()
 
-# Hugging Face settings
-HUGGINGFACE_API_KEY = os.getenv("HF_API_KEY")
-MODEL_URL = "https://api-inference.huggingface.co/models/google/flan-t5-base"
+HF_API_KEY = os.getenv("HF_API_KEY")
 
-headers = {
-    "Authorization": f"Bearer {HUGGINGFACE_API_KEY}"
+MODEL_URL = "https://api-inference.huggingface.co/models/bigscience/bloom-560m"
+
+HEADERS = {
+    "Authorization": f"Bearer {HF_API_KEY}",
+    "Content-Type": "application/json"
 }
 
-# Request body schema
+
 class AIRequest(BaseModel):
     text_to_ai: str
     word_to_check: str
@@ -25,42 +26,45 @@ def ai_check(data: AIRequest):
         "inputs": data.text_to_ai
     }
 
-    response = requests.post(MODEL_URL, headers=headers, json=payload)
+    try:
+        response = requests.post(
+            MODEL_URL,
+            headers=HEADERS,
+            json=payload,
+            timeout=30
+        )
+    except Exception as e:
+        return {
+            "ai_response": None,
+            "found": False,
+            "error": str(e)
+        }
 
-    # Try to parse response as JSON
     try:
         result = response.json()
     except Exception:
         return {
             "ai_response": None,
-            "word_to_check": data.word_to_check,
             "found": False,
-            "error": "Invalid response from AI service"
+            "error": "Invalid JSON from Hugging Face"
         }
 
-    # Handle non-200 responses (model loading / errors)
+    # Hugging Face error or model loading
     if response.status_code != 200:
         return {
             "ai_response": None,
-            "word_to_check": data.word_to_check,
             "found": False,
-            "error": result
+            "hf_response": result
         }
 
-    # Handle different Hugging Face response formats
-    if isinstance(result, list) and len(result) > 0 and "generated_text" in result[0]:
-        ai_text = result[0]["generated_text"]
-    elif isinstance(result, dict) and "generated_text" in result:
-        ai_text = result["generated_text"]
+    # Extract generated text safely
+    if isinstance(result, list) and len(result) > 0:
+        ai_text = result[0].get("generated_text", "")
+    elif isinstance(result, dict):
+        ai_text = result.get("generated_text", "")
     else:
-        return {
-            "ai_response": None,
-            "word_to_check": data.word_to_check,
-            "found": False,
-            "error": result
-        }
+        ai_text = ""
 
-    # Check if the word exists in AI response
     found = data.word_to_check.lower() in ai_text.lower()
 
     return {
