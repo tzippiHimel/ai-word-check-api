@@ -15,7 +15,7 @@ HEADERS = {
     "Content-Type": "application/json"
 }
 
-MODEL_NAME = "bigscience/bloom-560m"
+MODEL_NAME = "mistralai/Mistral-7B-Instruct-v0.2"
 
 
 class AIRequest(BaseModel):
@@ -80,3 +80,4 @@ def ai_check(data: AIRequest):
         "word_to_check": data.word_to_check,
         "found": found
     }
+
