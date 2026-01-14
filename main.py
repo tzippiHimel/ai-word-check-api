@@ -7,7 +7,8 @@ app = FastAPI()
 
 HF_API_KEY = os.getenv("HF_API_KEY")
 
-MODEL_URL = "https://api-inference.huggingface.co/models/bigscience/bloom-560m"
+# ✅ NEW Hugging Face router endpoint
+MODEL_URL = "https://router.huggingface.co/v1/models/bigscience/bloom-560m"
 
 HEADERS = {
     "Authorization": f"Bearer {HF_API_KEY}",
@@ -49,7 +50,7 @@ def ai_check(data: AIRequest):
             "error": "Invalid JSON from Hugging Face"
         }
 
-    # Hugging Face error or model loading
+    # Hugging Face error / model loading
     if response.status_code != 200:
         return {
             "ai_response": None,
