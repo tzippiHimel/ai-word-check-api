@@ -5,10 +5,8 @@ import os
 
 app = FastAPI()
 
-# Gemini API key (להגדיר ב-Render כ-Environment Variable)
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
-# Gemini Flash 2.5 endpoint
 API_URL = (
     "https://generativelanguage.googleapis.com/v1beta/models/"
     "gemini-flash-2.5:generateContent"
@@ -28,7 +26,12 @@ def ai_check(data: AIRequest):
                     {"text": data.text_to_ai}
                 ]
             }
-        ]
+        ],
+        # חשוב: כופה יצירת טקסט
+        "generationConfig": {
+            "temperature": 0.7,
+            "maxOutputTokens": 256
+        }
     }
 
     try:
@@ -45,16 +48,26 @@ def ai_check(data: AIRequest):
             "found": False
         }
 
-    # שליפה יציבה של הטקסט (Gemini יכול להחזיר כמה parts)
+    # שליפה יציבה של הטקסט
     ai_text = ""
     try:
         candidates = result.get("candidates", [])
         if candidates:
-            parts = candidates[0].get("content", {}).get("parts", [])
-            texts = [p.get("text", "") for p in parts if "text" in p]
-            ai_text = " ".join(texts)
+            candidate = candidates[0]
+            parts = candidate.get("content", {}).get("parts", [])
+            texts = [p.get("text", "") for p in parts if isinstance(p, dict) and p.get("text")]
+            ai_text = " ".join(texts).strip()
+
+            # אם המודל סיים בלי טקסט (safety / empty)
+            finish_reason = candidate.get("finishReason", "")
+            if not ai_text and finish_reason:
+                ai_text = ""
     except Exception:
         ai_text = ""
+
+    # Fallback ברור – מבטיח שלא תקבלי מחרוזת ריקה
+    if not ai_text:
+        ai_text = "The AI did not generate textual output for this request."
 
     found = data.word_to_check.lower() in ai_text.lower()
 
