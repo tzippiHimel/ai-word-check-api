@@ -1,75 +1,47 @@
 import os
-import requests
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
-from dotenv import load_dotenv
+from flask import Flask, request, jsonify
+import google.generativeai as genai
 
-# load environment variables
-load_dotenv()
+app = Flask(__name__)
 
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-if not GEMINI_API_KEY:
-    raise RuntimeError("GEMINI_API_KEY is not set")
+# הגדרת מפתח API - מומלץ להגדיר ב-Render תחת Environment Variables
+# אם אתה שם אותו פה ישירות, שים אותו במקום ה-YOUR_API_KEY
+genai.configure(api_key=os.environ.get("GOOGLE_API_KEY", "YOUR_ACTUAL_API_KEY_HERE"))
 
-GEMINI_MODEL = "gemini-1.5-flash"
-GEMINI_URL = (
-    f"https://generativelanguage.googleapis.com/v1beta/models/"
-    f"{GEMINI_MODEL}:generateContent?key={GEMINI_API_KEY}"
-)
-
-app = FastAPI(title="AI Word Check API")
-
-class AIRequest(BaseModel):
-    text_to_ai: str
-    word_to_check: str
-
-class AIResponse(BaseModel):
-    ai_response: str
-    word_to_check: str
-    found: bool
-
-
-def call_gemini(prompt: str) -> str:
-    response = requests.post(
-        GEMINI_URL,
-        json={
-            "contents": [
-                {
-                    "role": "user",
-                    "parts": [{"text": prompt}]
-                }
-            ]
-        },
-        timeout=30
-    )
-
-    if response.status_code != 200:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Gemini API error: {response.text}"
-        )
-
-    data = response.json()
-
+@app.route('/check-ai', methods=['POST'])
+def check_ai():
     try:
-        text = data["candidates"][0]["content"]["parts"][0]["text"]
-    except (KeyError, IndexError):
-        raise HTTPException(
-            status_code=500,
-            detail="Invalid response from Gemini"
-        )
+        # קבלת נתונים מהבקשה
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "No data provided"}), 400
 
-    return text.strip()
+        text_to_ai = data.get('text_to_ai')
+        word_to_check = data.get('word_to_check')
 
+        # בדיקה שהפרמטרים קיימים
+        if not text_to_ai or not word_to_check:
+            return jsonify({"error": "Missing parameters 'text_to_ai' or 'word_to_check'"}), 400
 
-@app.post("/ai-check", response_model=AIResponse)
-def ai_check(payload: AIRequest):
-    ai_text = call_gemini(payload.text_to_ai)
+        # פנייה ל-AI (Gemini)
+        model = genai.GenerativeModel('gemini-2.5-flash')
+        response = model.generate_content(text_to_ai)
+        ai_text = response.text
 
-    found = payload.word_to_check.lower() in ai_text.lower()
+        # בדיקה האם המילה מופיעה בתשובה
+        is_found = word_to_check.lower() in ai_text.lower()
 
-    return AIResponse(
-        ai_response=ai_text,
-        word_to_check=payload.word_to_check,
-        found=found
-    )
+        # החזרת התוצאה הנדרשת
+        return jsonify({
+            "ai_response": ai_text,
+            "word_found": is_found,
+            "status": "success"
+        }), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+if __name__ == "__main__":
+    # הגדרות הרצה שמתאימות לענן
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host='0.0.0.0', port=port)
