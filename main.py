@@ -5,8 +5,10 @@ import os
 
 app = FastAPI()
 
+# Gemini API key (מוגדר ב-Render כ-Environment Variable)
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
+# Gemini Flash 2.5 endpoint
 API_URL = (
     "https://generativelanguage.googleapis.com/v1beta/models/"
     "gemini-flash-2.5:generateContent"
@@ -19,15 +21,21 @@ class AIRequest(BaseModel):
 
 @app.post("/ai-check")
 def ai_check(data: AIRequest):
+    # פרומפט שמכריח החזרת טקסט
+    prompt_text = (
+        "Answer in plain text. "
+        "Return a clear textual answer.\n\n"
+        f"{data.text_to_ai}"
+    )
+
     payload = {
         "contents": [
             {
                 "parts": [
-                    {"text": data.text_to_ai}
+                    {"text": prompt_text}
                 ]
             }
         ],
-        # חשוב: כופה יצירת טקסט
         "generationConfig": {
             "temperature": 0.7,
             "maxOutputTokens": 256
@@ -42,30 +50,31 @@ def ai_check(data: AIRequest):
         )
         result = response.json()
     except Exception:
+        # הגנה מוחלטת – אף פעם לא מחזיר 500
+        ai_text = "The AI service is currently unavailable."
+        found = data.word_to_check.lower() in ai_text.lower()
         return {
-            "ai_response": "",
+            "ai_response": ai_text,
             "word_to_check": data.word_to_check,
-            "found": False
+            "found": found
         }
 
-    # שליפה יציבה של הטקסט
+    # שליפה יציבה של הטקסט מג'מיני
     ai_text = ""
     try:
         candidates = result.get("candidates", [])
         if candidates:
-            candidate = candidates[0]
-            parts = candidate.get("content", {}).get("parts", [])
-            texts = [p.get("text", "") for p in parts if isinstance(p, dict) and p.get("text")]
+            parts = candidates[0].get("content", {}).get("parts", [])
+            texts = [
+                p.get("text", "")
+                for p in parts
+                if isinstance(p, dict) and p.get("text")
+            ]
             ai_text = " ".join(texts).strip()
-
-            # אם המודל סיים בלי טקסט (safety / empty)
-            finish_reason = candidate.get("finishReason", "")
-            if not ai_text and finish_reason:
-                ai_text = ""
     except Exception:
         ai_text = ""
 
-    # Fallback ברור – מבטיח שלא תקבלי מחרוזת ריקה
+    # Fallback אם המודל החזיר תשובה ריקה
     if not ai_text:
         ai_text = "The AI did not generate textual output for this request."
 
