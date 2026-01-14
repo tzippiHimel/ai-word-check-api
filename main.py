@@ -4,44 +4,37 @@ import google.generativeai as genai
 
 app = Flask(__name__)
 
-# הגדרת מפתח API - מומלץ להגדיר ב-Render תחת Environment Variables
-# אם אתה שם אותו פה ישירות, שים אותו במקום ה-YOUR_API_KEY
-genai.configure(api_key=os.environ.get("GOOGLE_API_KEY", "YOUR_ACTUAL_API_KEY_HERE"))
+# הגדרת מפתח ה-API
+# שים לב: אם לא הגדרת Environment Variable ב-Render, שים את המפתח כאן במקום המחרוזת
+api_key = os.environ.get("GOOGLE_API_KEY", "YOUR_ACTUAL_API_KEY_HERE")
+genai.configure(api_key=api_key)
 
 @app.route('/check-ai', methods=['POST'])
 def check_ai():
     try:
-        # קבלת נתונים מהבקשה
         data = request.get_json()
         if not data:
-            return jsonify({"error": "No data provided"}), 400
+            return jsonify({"error": "No data"}), 400
 
         text_to_ai = data.get('text_to_ai')
         word_to_check = data.get('word_to_check')
 
-        # בדיקה שהפרמטרים קיימים
-        if not text_to_ai or not word_to_check:
-            return jsonify({"error": "Missing parameters 'text_to_ai' or 'word_to_check'"}), 400
-
-        # פנייה ל-AI (Gemini)
-        model = genai.GenerativeModel('gemini-2.5-flash')
+        model = genai.GenerativeModel('gemini-1.5-flash')
         response = model.generate_content(text_to_ai)
         ai_text = response.text
 
-        # בדיקה האם המילה מופיעה בתשובה
         is_found = word_to_check.lower() in ai_text.lower()
 
-        # החזרת התוצאה הנדרשת
         return jsonify({
             "ai_response": ai_text,
-            "word_found": is_found,
-            "status": "success"
+            "word_found": is_found
         }), 200
-
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+# החלק הקריטי להרצה ב-Render:
 if __name__ == "__main__":
-    # הגדרות הרצה שמתאימות לענן
-    port = int(os.environ.get("PORT", 5000))
+    # Render חייב לקבל את הפורט ממשתנה הסביבה
+    port = int(os.environ.get("PORT", 10000))
+    # ה-host חייב להיות 0.0.0.0 כדי שיהיה ציבורי
     app.run(host='0.0.0.0', port=port)
