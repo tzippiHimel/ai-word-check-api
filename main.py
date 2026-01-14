@@ -7,15 +7,11 @@ app = FastAPI()
 
 HF_API_KEY = os.getenv("HF_API_KEY")
 
-# Hugging Face Router – OpenAI compatible
-API_URL = "https://router.huggingface.co/v1/chat/completions"
+MODEL_URL = "https://api-inference.huggingface.co/models/google/flan-t5-small"
 
 HEADERS = {
-    "Authorization": f"Bearer {HF_API_KEY}",
-    "Content-Type": "application/json"
+    "Authorization": f"Bearer {HF_API_KEY}"
 }
-
-MODEL_NAME = "mistralai/Mistral-7B-Instruct-v0.2"
 
 
 class AIRequest(BaseModel):
@@ -26,27 +22,15 @@ class AIRequest(BaseModel):
 @app.post("/ai-check")
 def ai_check(data: AIRequest):
     payload = {
-        "model": MODEL_NAME,
-        "messages": [
-            {"role": "user", "content": data.text_to_ai}
-        ],
-        "temperature": 0.7,
-        "max_tokens": 200
+        "inputs": data.text_to_ai
     }
 
-    try:
-        response = requests.post(
-            API_URL,
-            headers=HEADERS,
-            json=payload,
-            timeout=30
-        )
-    except Exception as e:
-        return {
-            "ai_response": None,
-            "found": False,
-            "error": str(e)
-        }
+    response = requests.post(
+        MODEL_URL,
+        headers=HEADERS,
+        json=payload,
+        timeout=30
+    )
 
     try:
         result = response.json()
@@ -54,24 +38,22 @@ def ai_check(data: AIRequest):
         return {
             "ai_response": None,
             "found": False,
-            "error": "Invalid response from Hugging Face Router"
+            "error": "Invalid response from AI service"
         }
 
-    if response.status_code != 200:
+    # Handle model loading or errors
+    if isinstance(result, dict) and "error" in result:
         return {
             "ai_response": None,
             "found": False,
-            "hf_response": result
+            "ai_status": result["error"]
         }
 
-    try:
-        ai_text = result["choices"][0]["message"]["content"]
-    except Exception:
-        return {
-            "ai_response": None,
-            "found": False,
-            "hf_response": result
-        }
+    # Expected format: list of generated_text
+    if isinstance(result, list) and len(result) > 0:
+        ai_text = result[0].get("generated_text", "")
+    else:
+        ai_text = ""
 
     found = data.word_to_check.lower() in ai_text.lower()
 
@@ -80,4 +62,3 @@ def ai_check(data: AIRequest):
         "word_to_check": data.word_to_check,
         "found": found
     }
-
