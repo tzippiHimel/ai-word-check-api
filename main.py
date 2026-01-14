@@ -5,16 +5,19 @@ import os
 
 app = FastAPI()
 
+# Gemini API key (להגדיר ב-Render כ-Environment Variable)
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
+# Gemini Flash 2.5 endpoint
 API_URL = (
     "https://generativelanguage.googleapis.com/v1beta/models/"
-    "gemini-pro:generateContent"
+    "gemini-flash-2.5:generateContent"
 )
 
 class AIRequest(BaseModel):
     text_to_ai: str
     word_to_check: str
+
 
 @app.post("/ai-check")
 def ai_check(data: AIRequest):
@@ -28,16 +31,28 @@ def ai_check(data: AIRequest):
         ]
     }
 
-    response = requests.post(
-        f"{API_URL}?key={GEMINI_API_KEY}",
-        json=payload,
-        timeout=30
-    )
-
-    result = response.json()
-
     try:
-        ai_text = result["candidates"][0]["content"]["parts"][0]["text"]
+        response = requests.post(
+            f"{API_URL}?key={GEMINI_API_KEY}",
+            json=payload,
+            timeout=30
+        )
+        result = response.json()
+    except Exception:
+        return {
+            "ai_response": "",
+            "word_to_check": data.word_to_check,
+            "found": False
+        }
+
+    # שליפה יציבה של הטקסט (Gemini יכול להחזיר כמה parts)
+    ai_text = ""
+    try:
+        candidates = result.get("candidates", [])
+        if candidates:
+            parts = candidates[0].get("content", {}).get("parts", [])
+            texts = [p.get("text", "") for p in parts if "text" in p]
+            ai_text = " ".join(texts)
     except Exception:
         ai_text = ""
 
