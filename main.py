@@ -19,7 +19,7 @@ def check_ai():
         text_to_ai = data.get('text_to_ai')
         word_to_check = data.get('word_to_check')
 
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        model = genai.GenerativeModel('gemini-2.5-flash')
         response = model.generate_content(text_to_ai)
         ai_text = response.text
 
@@ -38,3 +38,4 @@ if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     # ה-host חייב להיות 0.0.0.0 כדי שיהיה ציבורי
     app.run(host='0.0.0.0', port=port)
+
